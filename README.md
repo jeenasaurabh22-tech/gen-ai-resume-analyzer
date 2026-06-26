@@ -53,16 +53,17 @@ Built using the MERN Stack with Docker support and deployed on AWS ECS.
 # 📷 Screenshots
 
 Add screenshots here.
-
-```
 Home Page
+<img width="1897" height="861" alt="Screenshot (201)" src="https://github.com/user-attachments/assets/da0d65b8-35ed-4631-b83a-3d632d7bdb52" />
 Dashboard
+<img width="1891" height="900" alt="Screenshot (202)" src="https://github.com/user-attachments/assets/387a631f-0690-4c18-90b5-e21f4db66268" />
 Resume Upload
-Generated Report
-Interview Questions
-```
+<img width="1920" height="1080" alt="Screenshot (203)" src="https://github.com/user-attachments/assets/a09d1e9f-62dc-4d74-8505-ce09c8fcbbdb" />
+<img width="1888" height="923" alt="Screenshot (205)" src="https://github.com/user-attachments/assets/d633fc2d-5cd4-4518-88e9-6f8fa60f25ab" />
+Generated Report and Interview Questions
+<img width="1893" height="904" alt="Screenshot (207)" src="https://github.com/user-attachments/assets/9aa305e4-6c03-4461-b0ac-b929e0cc63cf" />
 
----
+
 
 # ⚙️ Project Structure
 
