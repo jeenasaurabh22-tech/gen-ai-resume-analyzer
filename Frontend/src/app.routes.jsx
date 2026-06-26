@@ -1,18 +1,38 @@
 import {createBrowserRouter} from "react-router-dom";
 import Login from "./features/auth/pages/Login.jsx";
 import Register from "./features/auth/pages/Register.jsx";
+import Home from "./features/interview/pages/home.jsx";
+import Interview from "./features/interview/pages/Interview.jsx";
+import LoadingReport from "./features/interview/pages/LoadingReport.jsx";
 import Protected from "./features/auth/components/protected.jsx"
+
 export const router = createBrowserRouter([
     {
         path:"/login",
         element:<Login/>
-},                        
+    },                        
     {
         path:"/register",
         element:<Register/>
     },
     {
         path:'/',
-        element:<Protected/>
+        element:<Protected><Home/></Protected>
+    },
+    {
+        path:'/interview',
+        element:<Protected><Interview/></Protected>
+    },
+    {
+        path:'/interview/loading',
+        element:<Protected><LoadingReport/></Protected>
+    },
+    {
+        path:'/interview/report',
+        element:<Protected><Interview/></Protected>
+    },
+    {
+        path:'/interview/report/:reportId',
+        element:<Protected><Interview/></Protected>
     }
 ])

@@ -7,7 +7,18 @@ const app=express();
 app.use(express.json());
 app.use(cookieParser());
 app.use(cors({
-    origin:"http://localhost:5173",
+    origin: function(origin, callback) {
+        const allowedOrigins = [
+            "http://localhost:5173",
+            "http://localhost:3000",
+            "http://docker-awsalb-1094310998.ap-northeast-1.elb.amazonaws.com"
+        ];
+        if (!origin || allowedOrigins.includes(origin)) {
+            callback(null, true);
+        } else {
+            callback(new Error('Not allowed by CORS'));
+        }
+    },
     credentials:true,
 }));
 

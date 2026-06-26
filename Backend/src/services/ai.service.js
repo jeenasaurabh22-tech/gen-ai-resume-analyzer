@@ -4,13 +4,17 @@ const {zodToJsonSchema}=require("zod-to-json-schema");
 const ai=new GoogleGenAI({
     apiKey: process.env.GOOGLE_GENAI_API_KEY
 });
-async function invokeGeminiAi(){
-    const response=await ai.models.generateContent({
-        model:"gemini-2.5-flash-lite",
-        contents:"Hello gemini,explain what is interview?"
+
+async function callWithTimeout(promise, timeoutMs = 20000) {
+    let timeoutId;
+    const timeoutPromise = new Promise((_, reject) => {
+        timeoutId = setTimeout(() => reject(new Error(`Gemini API request timed out after ${timeoutMs/1000}s`)), timeoutMs);
     });
-    console.log(response.text);
+    const result = await Promise.race([promise, timeoutPromise]);
+    clearTimeout(timeoutId);
+    return result;
 }
+
 const interviewReportSchema = z.object({
     matchScore: z.number().describe("A score between 0 and 100 indicating how well the candidate's profile matches the job describe"),
     technicalQuestions: z.array(z.object({
@@ -81,19 +85,23 @@ Respond with exactly this JSON structure:
 }`;
 
         console.log("Calling Gemini API...");
-        const response = await ai.models.generateContent({
-            model: "gemini-2.5-flash-lite",
-            contents: prompt
-        });
+        const response = await callWithTimeout(
+            ai.models.generateContent({
+                model: "gemini-3-flash-preview",
+                contents: prompt
+            }),
+            20000
+        );
 
-        if (!response || !response.text) {
+        const responseText = response?.text || response?.candidates?.[0]?.content?.text || "";
+        if (!responseText) {
             console.error("No response from API");
             throw new Error("Empty response from API");
         }
 
-        console.log("Got response, length:", response.text.length);
+        console.log("Got response, length:", responseText.length);
         
-        let jsonText = response.text.trim();
+        let jsonText = responseText.trim();
         
         if (jsonText.includes("```json")) {
             jsonText = jsonText.split("```json")[1].split("```")[0].trim();
@@ -114,14 +122,7 @@ Respond with exactly this JSON structure:
         };
     } catch (error) {
         console.error("ERROR generating report:", error.message);
-        return {
-            matchScore: 0,
-            technicalQuestions: [],
-            behavioralQuestions: [],
-            skillGaps: [],
-            preparationPlan: [],
-            title: "Interview Report"
-        };
+        throw new Error(`Gemini report generation failed: ${error.message}`);
     }
 }
 

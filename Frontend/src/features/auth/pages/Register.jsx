@@ -33,17 +33,6 @@ const Register = () => {
         <p className="subtitle">Join us to get started</p>
         <form onSubmit={handleSubmit}>
           <div className="form-group">
-            <label htmlFor="fullname">Full Name</label>
-            <input 
-            onChange={(e)=>setUsername(e.target.value)}
-              type="text" 
-              id="fullname" 
-              name="fullname" 
-              placeholder="John Doe"
-              required 
-            />
-          </div>
-          <div className="form-group">
             <label htmlFor="userName">Username</label>
             <input 
               onChange={(e)=>setUsername(e.target.value)}
@@ -58,11 +47,6 @@ const Register = () => {
             <label htmlFor="email">Email Address</label>
             <input 
               onChange={(e)=>setEmail(e.target.value)}
-              type="email" 
-              id="email" 
-              name="email" 
-              placeholder="you@example.com"
-              required 
               type="email" 
               id="email" 
               name="email" 

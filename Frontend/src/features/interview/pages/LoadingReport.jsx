@@ -34,7 +34,12 @@ const LoadingReport = () => {
         elapsedTime = 0;
 
         if (currentStepIndex >= steps.length) {
-          navigate('/interview/report', { state: { report, isLoading: false } });
+          const reportId = report._id || report.id;
+          if (reportId) {
+            navigate(`/interview/report/${reportId}`, { state: { report } });
+          } else {
+            navigate('/interview/report', { state: { report } });
+          }
           clearInterval(timer);
           return;
         }

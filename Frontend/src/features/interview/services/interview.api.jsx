@@ -1,8 +1,17 @@
 import axios from "axios";
+import API_URL from "../../../config/apiConfig.js";
 
 const api = axios.create({
-  baseURL: import.meta.env.VITE_API_URL,
+  baseURL: API_URL,
   withCredentials: true,
+});
+
+api.interceptors.request.use((config) => {
+  const token = localStorage.getItem('token');
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`;
+  }
+  return config;
 });
 
 export async function generateInterviewReport({ jobDescription, selfDescription, resume }) {
@@ -20,6 +29,16 @@ export async function generateInterviewReport({ jobDescription, selfDescription,
     return response.data.interviewReport;
   } catch (error) {
     console.error("Error generating interview report:", error);
+    throw error;
+  }
+}
+
+export async function getReport(reportId) {
+  try {
+    const response = await api.get(`/interview/${reportId}`);
+    return response.data.interviewReport;
+  } catch (error) {
+    console.error("Error fetching interview report:", error);
     throw error;
   }
 }

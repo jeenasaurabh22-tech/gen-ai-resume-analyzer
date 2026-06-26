@@ -10,8 +10,10 @@ export const useAuth=()=>{
         try{
             const userData=await login({email,password});
             setUser(userData.user);
+            return userData;
         } catch (error) {
             console.error("Login failed:", error);
+            throw error;
         } finally {
             setLoading(false);
         }

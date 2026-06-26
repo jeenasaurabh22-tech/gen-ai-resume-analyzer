@@ -5,6 +5,7 @@ const upload=require("../middlewares/file.middleware");
 const interviewController=require("../controllers/interview.controller");
 
 interviewRouter.post('/', authMiddleware.authUser, upload.single('resume'), interviewController.generateInterviewReportController);
+interviewRouter.get('/:reportId', authMiddleware.authUser, interviewController.getReportController);
 interviewRouter.get('/:reportId/download', authMiddleware.authUser, interviewController.downloadReportController);
 
 module.exports=interviewRouter;

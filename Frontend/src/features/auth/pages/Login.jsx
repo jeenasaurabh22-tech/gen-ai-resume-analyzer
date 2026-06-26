@@ -7,12 +7,18 @@ const Login = () => {
   const {loading,handleLogin}=useAuth();
   const[email,setEmail]=useState("");
   const [password,setPassword]=useState("");
+  const [error,setError]=useState(null);
   const navigate=useNavigate();
 
   const handleSubmit = async (e) => {
-    e.preventDefault()
-    await handleLogin({email,password});
-    navigate('/');
+    e.preventDefault();
+    setError(null);
+    try {
+      await handleLogin({email,password});
+      navigate('/');
+    } catch (err) {
+      setError(err.message || 'Login failed');
+    }
   }
   if(loading){
     return (<main><h1>Loading...</h1>
@@ -56,7 +62,8 @@ const Login = () => {
             <a href="#forgot">Forgot password?</a>
           </div>
 
-          <button className="btn btn-primary" type="submit">
+          {error && <div className="form-error">{error}</div>}
+        <button className="btn btn-primary" type="submit">
             Sign In
           </button>
         </form>

@@ -1,9 +1,210 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo, useRef } from "react";
 import { useParams, useLocation, useNavigate } from "react-router-dom";
-import { downloadReport } from "../services/interview.api";
+import { downloadReport, getReport } from "../services/interview.api";
 import "../style/interview.scss";
 
+const normalizeReport = (report) => {
+  if (!report || typeof report !== 'object') return {};
+  return {
+    title: report.title || report.jobTitle || "Interview Report",
+    matchScore: report.matchScore || report.match_score || 0,
+    technicalQuestions: report.technicalQuestions || report.technical_questions || [],
+    behavioralQuestions: report.behavioralQuestions || report.behavioral_questions || [],
+    skillGaps: report.skillGaps || report.skill_gaps || [],
+    preparationPlan: report.preparationPlan || report.preparation_plan || [],
+    ...report
+  };
+};
+
+const parseQuestions = (questionsData) => {
+  try {
+    if (!questionsData) return [];
+    if (typeof questionsData === 'string') {
+      try {
+        questionsData = JSON.parse(questionsData);
+      } catch {
+        return [];
+      }
+    }
+    if (!Array.isArray(questionsData)) {
+      questionsData = [questionsData];
+    }
+
+    return questionsData
+      .filter(item => item)
+      .map((item) => {
+        try {
+          let obj = item;
+          if (typeof item === 'string') {
+            try {
+              obj = JSON.parse(item);
+            } catch {
+              return { question: item, purpose: '', answer: '' };
+            }
+          }
+
+          if (typeof obj !== 'object' || !obj) {
+            return { question: String(obj), purpose: '', answer: '' };
+          }
+
+          const question = obj.question || obj.q || String(obj) || '';
+          const purpose = obj.intention || obj.purpose || obj.assessment_purpose || obj.intent || obj.Assessment_purpose || obj.Assessment_Intent || obj.why_this_question || '';
+          const answer = obj.answer || obj.how_to_answer || obj.how_to_respond || obj.response || obj.Answer || obj.solution || '';
+
+          return {
+            question: question.trim(),
+            purpose: purpose.trim() || 'Purpose not available',
+            answer: answer.trim() || 'Answer guidance not available',
+          };
+        } catch {
+          return { question: String(item), purpose: '', answer: '' };
+        }
+      })
+      .filter(q => q.question && String(q.question).trim().length > 0);
+  } catch {
+    return [];
+  }
+};
+
+const parseSkillGaps = (skillsData) => {
+  try {
+    if (!skillsData) return [];
+
+    let skillsArray = [];
+    if (typeof skillsData === 'string') {
+      try {
+        skillsArray = JSON.parse(skillsData);
+      } catch {
+        skillsArray = [skillsData];
+      }
+    } else if (Array.isArray(skillsData)) {
+      skillsArray = skillsData;
+    } else if (typeof skillsData === 'object') {
+      skillsArray = [skillsData];
+    } else {
+      skillsArray = [skillsData];
+    }
+
+    if (!Array.isArray(skillsArray)) {
+      skillsArray = [skillsArray];
+    }
+
+    return skillsArray
+      .filter(item => item)
+      .map((item) => {
+        try {
+          let skillObj = item;
+          if (typeof item === 'string') {
+            const trimmed = item.trim();
+            if (trimmed.startsWith('{')) {
+              try {
+                skillObj = JSON.parse(trimmed);
+              } catch {
+                return { name: trimmed, level: 'Medium', description: '' };
+              }
+            } else {
+              return { name: trimmed, level: 'Medium', description: '' };
+            }
+          }
+
+          if (typeof skillObj !== 'object' || !skillObj) {
+            return { name: String(skillObj), level: 'Medium', description: '' };
+          }
+
+          const name = skillObj.skill || skillObj.name || skillObj.title || String(skillObj);
+          if (!name || String(name).trim() === '') {
+            return null;
+          }
+
+          return {
+            name: String(name).trim(),
+            level: skillObj.severity || skillObj.level || 'Medium',
+            description: skillObj.details || skillObj.description || skillObj.content || '',
+          };
+        } catch {
+          return { name: String(item), level: 'Medium', description: '' };
+        }
+      })
+      .filter(s => s && s.name && String(s.name).trim().length > 0);
+  } catch {
+    return [];
+  }
+};
+
+const parsePreparationPlan = (planData) => {
+  try {
+    if (!planData) return [];
+
+    let planArray = [];
+    if (typeof planData === 'string') {
+      try {
+        planArray = JSON.parse(planData);
+      } catch {
+        planArray = [planData];
+      }
+    } else if (Array.isArray(planData)) {
+      planArray = planData;
+    } else if (typeof planData === 'object') {
+      planArray = [planData];
+    } else {
+      planArray = [planData];
+    }
+
+    if (!Array.isArray(planArray)) {
+      planArray = [planArray];
+    }
+
+    return planArray
+      .filter(item => item)
+      .map((item) => {
+        try {
+          let planObj = item;
+          if (typeof item === 'string') {
+            const trimmed = item.trim();
+            if (trimmed.startsWith('{')) {
+              try {
+                planObj = JSON.parse(trimmed);
+              } catch {
+                if (trimmed.includes(':')) {
+                  const [title, desc] = trimmed.split(':');
+                  return { day: 0, focus: title.trim(), activities: desc.trim() };
+                }
+                return { day: 0, focus: trimmed, activities: '' };
+              }
+            } else if (trimmed.includes(':')) {
+              const [title, desc] = trimmed.split(':');
+              return { day: 0, focus: title.trim(), activities: desc.trim() };
+            } else {
+              return { day: 0, focus: trimmed, activities: '' };
+            }
+          }
+
+          if (typeof planObj !== 'object' || !planObj) {
+            return { day: 0, focus: String(planObj), activities: '' };
+          }
+
+          const focus = planObj.focus || planObj.title || planObj.topic || '';
+          if (!focus || String(focus).trim() === '') {
+            return null;
+          }
+
+          return {
+            day: planObj.day || planObj.dayNumber || 0,
+            focus: String(focus).trim(),
+            activities: planObj.activities || planObj.description || planObj.content || (planObj.tasks ? (Array.isArray(planObj.tasks) ? planObj.tasks.join('\n') : String(planObj.tasks)) : ''),
+          };
+        } catch {
+          return { day: 0, focus: String(item), activities: '' };
+        }
+      })
+      .filter(item => item && (item.focus || item.activities));
+  } catch {
+    return [];
+  }
+};
+
 const Interview = ({ report: initialReport = {} }) => {
+  const { reportId } = useParams();
   const [report, setReport] = useState(initialReport);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState("technical");
@@ -13,45 +214,37 @@ const Interview = ({ report: initialReport = {} }) => {
   const [downloadLoading, setDownloadLoading] = useState(false);
   const location = useLocation();
   const navigate = useNavigate();
+  const hasInitialized = useRef(false);
 
   useEffect(() => {
-    if (initialReport && Object.keys(initialReport).length > 0) {
-      console.log('Initial Report:', initialReport);
-      const normalized = normalizeReport(initialReport);
-      setReport(normalized);
-      setLoading(false);
-      return;
-    }
-
-    if (location && location.state && location.state.report) {
-      console.log('Location Report:', location.state.report);
-      const normalized = normalizeReport(location.state.report);
-      setReport(normalized);
-      setLoading(false);
-      return;
-    }
-
-    if (location && location.state && location.state.isLoading === false) {
-      setLoading(false);
-      return;
-    }
-
-    setLoading(false);
-  }, [initialReport, location]);
-
-  const normalizeReport = (report) => {
-    if (!report || typeof report !== 'object') return {};
-
-    return {
-      title: report.title || report.jobTitle || "Interview Report",
-      matchScore: report.matchScore || report.match_score || 0,
-      technicalQuestions: report.technicalQuestions || report.technical_questions || [],
-      behavioralQuestions: report.behavioralQuestions || report.behavioral_questions || [],
-      skillGaps: report.skillGaps || report.skill_gaps || [],
-      preparationPlan: report.preparationPlan || report.preparation_plan || [],
-      ...report
+    if (hasInitialized.current) return;
+    
+    const initializeReport = async () => {
+      try {
+        const reportData = location.state?.report;
+        
+        if (reportData && Object.keys(reportData).length > 0) {
+          const normalized = normalizeReport(reportData);
+          setReport(normalized);
+          setLoading(false);
+        } else if (reportId) {
+          const fetchedReport = await getReport(reportId);
+          const normalized = normalizeReport(fetchedReport);
+          setReport(normalized);
+          setLoading(false);
+        } else {
+          navigate('/');
+          return;
+        }
+      } catch (error) {
+        console.error('Error loading report:', error);
+        navigate('/');
+      }
     };
-  };
+
+    initializeReport();
+    hasInitialized.current = true;
+  }, [reportId, navigate]);
 
   if (loading) {
     return (
@@ -140,249 +333,10 @@ const Interview = ({ report: initialReport = {} }) => {
     );
   }
 
-  const safeJSONParse = (data) => {
-    if (typeof data === 'string') {
-      try {
-        const trimmed = data.trim();
-        if (trimmed.startsWith('{')) {
-          return JSON.parse(trimmed);
-        }
-      } catch {
-        return data;
-      }
-    }
-    return data;
-  };
-
-  const parseQuestions = (questionsData) => {
-    try {
-      if (!questionsData) return [];
-      if (typeof questionsData === 'string') {
-        try {
-          questionsData = JSON.parse(questionsData);
-        } catch {
-          return [];
-        }
-      }
-      if (!Array.isArray(questionsData)) {
-        questionsData = [questionsData];
-      }
-
-      console.log('Raw questions data:', questionsData);
-
-      return questionsData
-        .filter(item => item)
-        .map((item, idx) => {
-          try {
-            let obj = item;
-            if (typeof item === 'string') {
-              try {
-                obj = JSON.parse(item);
-              } catch {
-                return { question: item, purpose: '', answer: '' };
-              }
-            }
-
-            if (typeof obj !== 'object' || !obj) {
-              return { question: String(obj), purpose: '', answer: '' };
-            }
-
-            console.log(`Question ${idx} raw object:`, JSON.stringify(obj, null, 2));
-
-            const question = obj.question || obj.q || String(obj) || '';
-            const purpose = obj.intention || obj.purpose || obj.assessment_purpose || obj.intent || obj.Assessment_purpose || obj.Assessment_Intent || obj.why_this_question || '';
-            const answer = obj.answer || obj.how_to_answer || obj.how_to_respond || obj.response || obj.Answer || obj.solution || '';
-
-            const parsed = {
-              question: question.trim(),
-              purpose: purpose.trim() || 'Purpose not available',
-              answer: answer.trim() || 'Answer guidance not available',
-            };
-
-            console.log(`Question ${idx} parsed:`, parsed);
-
-            return parsed;
-          } catch (e) {
-            console.error(`Error parsing question ${idx}:`, e);
-            return { question: String(item), purpose: '', answer: '' };
-          }
-        })
-        .filter(q => q.question && String(q.question).trim().length > 0);
-    } catch (error) {
-      console.error('Error parsing questions:', error);
-      return [];
-    }
-  };
-
-  const parseSkillGaps = (skillsData) => {
-    try {
-      if (!skillsData) return [];
-
-      let skillsArray = [];
-      if (typeof skillsData === 'string') {
-        try {
-          skillsArray = JSON.parse(skillsData);
-        } catch {
-          skillsArray = [skillsData];
-        }
-      } else if (Array.isArray(skillsData)) {
-        skillsArray = skillsData;
-      } else if (typeof skillsData === 'object') {
-        skillsArray = [skillsData];
-      } else {
-        skillsArray = [skillsData];
-      }
-
-      if (!Array.isArray(skillsArray)) {
-        skillsArray = [skillsArray];
-      }
-
-      return skillsArray
-        .filter(item => item)
-        .map((item) => {
-          try {
-            let skillObj = item;
-            if (typeof item === 'string') {
-              const trimmed = item.trim();
-              if (trimmed.startsWith('{')) {
-                try {
-                  skillObj = JSON.parse(trimmed);
-                } catch {
-                  return { name: trimmed, level: 'Medium', description: '' };
-                }
-              } else {
-                return { name: trimmed, level: 'Medium', description: '' };
-              }
-            }
-
-            if (typeof skillObj !== 'object' || !skillObj) {
-              return { name: String(skillObj), level: 'Medium', description: '' };
-            }
-
-            const name = skillObj.skill || skillObj.name || skillObj.title || String(skillObj);
-            if (!name || String(name).trim() === '') {
-              return null;
-            }
-
-            return {
-              name: String(name).trim(),
-              level: skillObj.severity || skillObj.level || 'Medium',
-              description: skillObj.details || skillObj.description || skillObj.content || '',
-            };
-          } catch {
-            return { name: String(item), level: 'Medium', description: '' };
-          }
-        })
-        .filter(s => s && s.name && String(s.name).trim().length > 0);
-    } catch (error) {
-      console.error('Error parsing skill gaps:', error);
-      return [];
-    }
-  };
-
-  const parsePreparationPlan = (planData) => {
-    try {
-      if (!planData) return [];
-
-      let planArray = [];
-      if (typeof planData === 'string') {
-        try {
-          planArray = JSON.parse(planData);
-        } catch {
-          planArray = [planData];
-        }
-      } else if (Array.isArray(planData)) {
-        planArray = planData;
-      } else if (typeof planData === 'object') {
-        planArray = [planData];
-      } else {
-        planArray = [planData];
-      }
-
-      if (!Array.isArray(planArray)) {
-        planArray = [planArray];
-      }
-
-      return planArray
-        .filter(item => item)
-        .map((item) => {
-          try {
-            let planObj = item;
-            if (typeof item === 'string') {
-              const trimmed = item.trim();
-              if (trimmed.startsWith('{')) {
-                try {
-                  planObj = JSON.parse(trimmed);
-                } catch {
-                  if (trimmed.includes(':')) {
-                    const [title, desc] = trimmed.split(':');
-                    return { day: 0, focus: title.trim(), activities: desc.trim() };
-                  }
-                  return { day: 0, focus: trimmed, activities: '' };
-                }
-              } else if (trimmed.includes(':')) {
-                const [title, desc] = trimmed.split(':');
-                return { day: 0, focus: title.trim(), activities: desc.trim() };
-              } else {
-                return { day: 0, focus: trimmed, activities: '' };
-              }
-            }
-
-            if (typeof planObj !== 'object' || !planObj) {
-              return { day: 0, focus: String(planObj), activities: '' };
-            }
-
-            const focus = planObj.focus || planObj.title || planObj.topic || '';
-            if (!focus || String(focus).trim() === '') {
-              return null;
-            }
-
-            return {
-              day: planObj.day || planObj.dayNumber || 0,
-              focus: String(focus).trim(),
-              activities: planObj.activities || planObj.description || planObj.content || (planObj.tasks ? (Array.isArray(planObj.tasks) ? planObj.tasks.join('\n') : String(planObj.tasks)) : ''),
-            };
-          } catch {
-            return { day: 0, focus: String(item), activities: '' };
-          }
-        })
-        .filter(item => item && (item.focus || item.activities));
-    } catch (error) {
-      console.error('Error parsing preparation plan:', error);
-      return [];
-    }
-  };
-
-  const technicalQuestions = (() => {
-    console.log('=== REPORT DATA ===');
-    console.log('Full Report:', report);
-    console.log('Technical Questions raw:', report.technicalQuestions);
-    const parsed = parseQuestions(report.technicalQuestions);
-    console.log('Technical Questions parsed:', parsed);
-    return parsed;
-  })();
-  
-  const behavioralQuestions = (() => {
-    console.log('Behavioral Questions raw:', report.behavioralQuestions);
-    const parsed = parseQuestions(report.behavioralQuestions);
-    console.log('Behavioral Questions parsed:', parsed);
-    return parsed;
-  })();
-  
-  const skillGaps = (() => {
-    console.log('Skill Gaps raw:', report.skillGaps);
-    const parsed = parseSkillGaps(report.skillGaps);
-    console.log('Skill Gaps parsed:', parsed);
-    return parsed;
-  })();
-  
-  const preparationPlan = (() => {
-    console.log('Preparation Plan raw:', report.preparationPlan);
-    const parsed = parsePreparationPlan(report.preparationPlan);
-    console.log('Preparation Plan parsed:', parsed);
-    console.log('=== END REPORT DATA ===');
-    return parsed;
-  })();
+  const technicalQuestions = parseQuestions(report.technicalQuestions);
+  const behavioralQuestions = parseQuestions(report.behavioralQuestions);
+  const skillGaps = parseSkillGaps(report.skillGaps);
+  const preparationPlan = parsePreparationPlan(report.preparationPlan);
 
   const currentQuestions =
     activeTab === "technical" ? technicalQuestions : behavioralQuestions;
