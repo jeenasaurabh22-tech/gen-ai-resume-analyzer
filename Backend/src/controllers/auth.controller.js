@@ -31,6 +31,7 @@ async function regsiterUserController(req,res){
             await newUser.save();
             res.status(201).json({message:"User registered successfully",token,user:{id:newUser._id,userName:newUser.userName,email:newUser.email}});
         }
+        
     }catch(error){
         console.error("Error registering user:", error.message);
         console.error("Stack:", error.stack);
